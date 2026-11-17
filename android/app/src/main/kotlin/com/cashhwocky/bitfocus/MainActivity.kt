@@ -35,6 +35,16 @@ class MainActivity : FlutterActivity() {
                     performMediaAction(action)
                     result.success(true)
                 }
+                "loadState" -> {
+                    val prefs = getSharedPreferences("bitfocus_state", Context.MODE_PRIVATE)
+                    result.success(prefs.getString("json", null))
+                }
+                "saveState" -> {
+                    val json = call.argument<String>("json") ?: ""
+                    val prefs = getSharedPreferences("bitfocus_state", Context.MODE_PRIVATE)
+                    prefs.edit().putString("json", json).apply()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
             }
         }

@@ -36,10 +36,9 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: bitFocus v1.0.${{ github.run_number }}
           body: |
-            Automated release build of **bitFocus** for Android (Pixel / AOSP).
-            - Custom Adaptive Icon & Material You Multi-Theme Switcher (No AMOLED black)
-            - Live Android MediaSession Now-Playing Mini Player
-            - Generative Aurora & Mountain Reset Timer
-            - No-Contact Reality Check Vault & Impulse Burn Box
-            - 15-Minute School Anti-Overwhelm Launcher & Crash Forensics
+            **bitFocus**: calm tools for focus, urges, and rough moments. Built for anyone.
+            - Rounded Material You design with five color styles (in Settings)
+            - Reset timer, Urge shield, one-step Focus sprints, and Patterns tracker
+            - Renameable tabs, full reset options, everything saved on-device
+            - Optional now-playing music bar
           files: build/app/outputs/flutter-apk/app-release.apk
