@@ -728,11 +728,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           label: 'reset',
                         ),
                         NavigationDestination(
-                icon: Icon(Icons.chat_bubble_outline_rounded),
-                selectedIcon: Icon(Icons.chat_bubble_rounded),
-                label: 'Advisor',
-              ),
-              NavigationDestination(
                 icon: Icon(Icons.shield_outlined),
                           selectedIcon: Icon(Icons.shield_rounded),
                           label: 'urges',
