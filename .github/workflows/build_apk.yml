@@ -40,5 +40,6 @@ jobs:
             - Rounded Material You design with five color styles (in Settings)
             - Reset timer, Urge shield, one-step Focus sprints, and Patterns tracker
             - Renameable tabs, full reset options, everything saved on-device
-            - Optional now-playing music bar
+            - Optional now-playing music bar with a full-screen swipe-down player
+            - Pixel Trail: a pixel-art walk with your pet (tutorial included)
           files: build/app/outputs/flutter-apk/app-release.apk

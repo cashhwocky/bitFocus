@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart' hide Text;
+import 'package:flutter/material.dart' as mat show Text;
 import 'lowercase.dart';
 import 'pet.dart';
+import 'player.dart';
 import 'package:flutter/services.dart';
 
 const MethodChannel _native = MethodChannel('com.cashhwocky.bitfocus/media');
@@ -809,6 +811,11 @@ class _NowPlayingMiniState extends State<NowPlayingMini> {
     } catch (_) {}
   }
 
+  void _openFull() {
+    widget.model.tap();
+    Navigator.of(context).push(fullPlayerRoute(widget.model));
+  }
+
   Future<void> _send(String action) async {
     widget.model.soft();
     try {
@@ -854,7 +861,13 @@ class _NowPlayingMiniState extends State<NowPlayingMini> {
 
     if (!_active) return const SizedBox.shrink();
 
-    return Container(
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _openFull,
+      onVerticalDragEnd: (d) {
+        if ((d.primaryVelocity ?? 0) < -250) _openFull();
+      },
+      child: Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
@@ -911,6 +924,7 @@ class _NowPlayingMiniState extends State<NowPlayingMini> {
             icon: Icon(Icons.skip_next_rounded, color: scheme.onSecondaryContainer),
           ),
         ],
+      ),
       ),
     );
   }
@@ -1034,8 +1048,8 @@ class _ResetScreenState extends State<ResetScreen> with SingleTickerProviderStat
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              "BITFOCUS",
+                            mat.Text(
+                              "bitFocus",
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w800,
@@ -1344,7 +1358,7 @@ class _UrgeScreenState extends State<UrgeScreen> {
     widget.model.releaseUrge();
     if (!mounted) return;
     setState(() => _releasing = false);
-    toast(context, "Let go. Nothing was sent.");
+    toast(context, "Disintegrated. Nothing was sent.");
   }
 
   Future<void> _restart() async {
@@ -1401,7 +1415,7 @@ class _UrgeScreenState extends State<UrgeScreen> {
                           const SizedBox(height: 2),
                           Text(fmtElapsed(elapsed), style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
                           Text(
-                            "${model.urgesReleased} ${model.urgesReleased == 1 ? 'urge' : 'urges'} let go",
+                            "${model.urgesReleased} ${model.urgesReleased == 1 ? 'urge' : 'urges'} disintegrated",
                             style: TextStyle(fontSize: 12.5, color: scheme.onSurfaceVariant),
                           ),
                         ],
@@ -1424,16 +1438,20 @@ class _UrgeScreenState extends State<UrgeScreen> {
                       children: [
                         Icon(Icons.air_rounded, color: scheme.primary, size: 22),
                         const SizedBox(width: 8),
-                        const Text("Write it out, then let it go", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                        const Text("Write it out, then disintegrate it", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                       ],
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      "Type what you want to say or do. Once it's out of your head, let it go instead of sending it.",
+                      "Type what you want to say or do. Once it's out of your head, disintegrate it instead of sending it.",
                       style: TextStyle(fontSize: 13, height: 1.4, color: scheme.onSurfaceVariant),
                     ),
                     const SizedBox(height: 12),
-                    AnimatedOpacity(
+                    AnimatedSlide(
+                      duration: const Duration(milliseconds: 450),
+                      curve: Curves.easeIn,
+                      offset: _releasing ? const Offset(0.04, -0.12) : Offset.zero,
+                      child: AnimatedOpacity(
                       duration: const Duration(milliseconds: 450),
                       opacity: _releasing ? 0.0 : 1.0,
                       child: TextField(
@@ -1444,13 +1462,14 @@ class _UrgeScreenState extends State<UrgeScreen> {
                         decoration: roundedField(scheme, "Write what you're tempted to do or say..."),
                       ),
                     ),
+                    ),
                     const SizedBox(height: 12),
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilledButton.icon(
                         onPressed: _release,
                         icon: const Icon(Icons.air_rounded, size: 18),
-                        label: const Text("Let it go"),
+                        label: const Text("Disintegrate"),
                       ),
                     ),
                   ],
@@ -2252,7 +2271,7 @@ class SettingsScreen extends StatelessWidget {
                       ListTile(
                         leading: const Icon(Icons.timer_outlined),
                         title: const Text("Restart streak"),
-                        subtitle: const Text("Timer and urges-let-go count"),
+                        subtitle: const Text("Timer and disintegrated-urges count"),
                         onTap: () => _resetAction(
                           context,
                           title: "Restart your streak?",
@@ -2332,8 +2351,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SectionLabel("About"),
                 Panel(
-                  child: Text(
-                    "bitFocus 1.0\nEverything you enter stays on this device. Nothing is uploaded or shared.",
+                  child: mat.Text(
+                    "bitFocus 1.0\neverything you enter stays on this device. nothing is uploaded or shared.",
                     style: TextStyle(fontSize: 13.5, height: 1.5, color: scheme.onSurfaceVariant),
                   ),
                 ),

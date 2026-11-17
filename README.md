@@ -1,4 +1,4 @@
-# bitfocus
+# bitFocus
 
 A new Flutter project.
 

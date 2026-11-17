@@ -5,6 +5,7 @@ import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'lowercase.dart';
 import 'main.dart';
+import 'pet_game.dart';
 
 const MethodChannel _petChannel = MethodChannel('com.cashhwocky.bitfocus/media');
 
@@ -44,6 +45,9 @@ class PetModel extends ChangeNotifier {
   bool remindersOn = false;
   int reminderHours = 6;
   double awayHours = 0;
+  bool gameTutorialDone = false;
+  int gameZones = 0; // furthest zone cleared (0-3)
+  int gameGems = 0; // lifetime gems from pixel trail
   Timer? _saveTimer;
 
   PetKind get species {
@@ -68,6 +72,9 @@ class PetModel extends ChangeNotifier {
         'lastVisitMs': lastVisitMs,
         'remindersOn': remindersOn,
         'reminderHours': reminderHours,
+        'gameTutorialDone': gameTutorialDone,
+        'gameZones': gameZones,
+        'gameGems': gameGems,
       };
 
   void _apply(Map<String, dynamic> j) {
@@ -83,6 +90,9 @@ class PetModel extends ChangeNotifier {
     lastVisitMs = (j['lastVisitMs'] as num?)?.toInt() ?? now;
     remindersOn = (j['remindersOn'] as bool?) ?? false;
     reminderHours = (j['reminderHours'] as num?)?.toInt() ?? 6;
+    gameTutorialDone = (j['gameTutorialDone'] as bool?) ?? false;
+    gameZones = (j['gameZones'] as num?)?.toInt() ?? 0;
+    gameGems = (j['gameGems'] as num?)?.toInt() ?? 0;
   }
 
   Future<void> load() async {
@@ -158,6 +168,22 @@ class PetModel extends ChangeNotifier {
     _decay();
     love = math.min(100, love + 10);
     joy = math.min(100, joy + 4);
+    _changed();
+  }
+
+  // Pixel trail game
+  void markTutorialDone() {
+    if (gameTutorialDone) return;
+    gameTutorialDone = true;
+    _changed();
+  }
+
+  void gameReward(int zone, int gems) {
+    _decay();
+    gameGems += gems;
+    if (zone > gameZones) gameZones = zone;
+    joy = math.min(100, joy + 12 + math.min(18, gems));
+    love = math.min(100, love + 5);
     _changed();
   }
 
@@ -327,6 +353,11 @@ class _PetScreenState extends State<PetScreen> with SingleTickerProviderStateMix
     widget.pet.cuddle();
     _spawn('💖');
     _say();
+  }
+
+  void _openGame() {
+    widget.model.firm();
+    Navigator.of(context).push(pixelTrailRoute(widget.pet, widget.model));
   }
 
   Future<void> _adopt() async {
@@ -538,6 +569,23 @@ class _PetScreenState extends State<PetScreen> with SingleTickerProviderStateMix
             ),
           ),
         ],
+      ),
+      const SizedBox(height: 10),
+      SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+          onPressed: _openGame,
+          icon: const Icon(Icons.videogame_asset_rounded),
+          label: const Text("play pixel trail"),
+        ),
+      ),
+      const SizedBox(height: 4),
+      Center(
+        child: Text(
+          "a little pixel walk with ${pet.name}",
+          style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+        ),
       ),
       const SizedBox(height: 10),
       Row(

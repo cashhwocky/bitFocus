@@ -32,10 +32,11 @@ class MainActivity : FlutterActivity() {
                     startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
                     result.success(true)
                 }
-                "getNowPlaying" -> result.success(fetchActiveMedia())
+                "getNowPlaying" -> result.success(fetchActiveMedia(call.argument<Boolean>("full") ?: false))
                 "mediaAction" -> {
                     val action = call.argument<String>("action") ?: ""
-                    performMediaAction(action)
+                    val seekTo = (call.argument<Number>("position") ?: 0).toLong()
+                    performMediaAction(action, seekTo)
                     result.success(true)
                 }
                 "loadState" -> {
@@ -119,7 +120,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun fetchActiveMedia(): Map<String, Any?> {
+    private fun fetchActiveMedia(full: Boolean): Map<String, Any?> {
         val controller = getActiveController() ?: return mapOf("active" to false)
         val metadata = controller.metadata
         val state = controller.playbackState
@@ -134,14 +135,26 @@ class MainActivity : FlutterActivity() {
         val bmp = metadata?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
             ?: metadata?.getBitmap(MediaMetadata.METADATA_KEY_ART)
         if (bmp != null) {
-            val scaled = Bitmap.createScaledBitmap(bmp, 140, 140, true)
+            val side = if (full) 480 else 140
+            val scaled = Bitmap.createScaledBitmap(bmp, side, side, true)
             val stream = ByteArrayOutputStream()
-            scaled.compress(Bitmap.CompressFormat.JPEG, 80, stream)
+            scaled.compress(Bitmap.CompressFormat.JPEG, if (full) 88 else 80, stream)
             artBase64 = Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
         }
 
+        val duration = metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0L
+        var position = state?.position ?: 0L
+        if (state != null && state.state == PlaybackState.STATE_PLAYING && state.position >= 0) {
+            val elapsed = android.os.SystemClock.elapsedRealtime() - state.lastPositionUpdateTime
+            position = state.position + (elapsed * state.playbackSpeed).toLong()
+        }
+        if (duration > 0 && position > duration) position = duration
+        if (position < 0) position = 0
+
         return mapOf(
             "active" to true,
+            "duration" to duration,
+            "position" to position,
             "title" to title,
             "artist" to artist,
             "isPlaying" to isPlaying,
@@ -150,7 +163,7 @@ class MainActivity : FlutterActivity() {
         )
     }
 
-    private fun performMediaAction(action: String) {
+    private fun performMediaAction(action: String, seekTo: Long = 0L) {
         val controls = getActiveController()?.transportControls ?: return
         when (action) {
             "playPause" -> {
@@ -159,6 +172,7 @@ class MainActivity : FlutterActivity() {
             }
             "next" -> controls.skipToNext()
             "prev" -> controls.skipToPrevious()
+            "seek" -> controls.seekTo(seekTo)
         }
     }
 }
