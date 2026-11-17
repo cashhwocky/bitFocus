@@ -11,10 +11,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 @pragma('vm:entry-point')
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
-    try {
-      final hasUpdate = await Updater.checkForUpdateSilent();
-      if (hasUpdate) await Updater.showUpdateNotification();
-    } catch (_) {}
+    try { if (await Updater.checkForUpdateSilent()) await Updater.showUpdateNotification(); } catch (_) {}
     return Future.value(true);
   });
 }
@@ -23,7 +20,6 @@ class Updater {
   static const String repoOwner = "cashhwocky";
   static const String repoName = "bitFocus";
   static final FlutterLocalNotificationsPlugin _notificationsPlugin = FlutterLocalNotificationsPlugin();
-  
   static String _latestDownloadUrl = "";
   static String _latestVersionTag = "";
 
@@ -40,21 +36,16 @@ class Updater {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         _latestVersionTag = data['tag_name'] ?? "";
-        if (data['assets'] != null && data['assets'].isNotEmpty) {
-          _latestDownloadUrl = data['assets'][0]['browser_download_url'];
-        }
+        if (data['assets'] != null && data['assets'].isNotEmpty) _latestDownloadUrl = data['assets'][0]['browser_download_url'];
         final packageInfo = await PackageInfo.fromPlatform();
-        if (_latestVersionTag.isNotEmpty && !_latestVersionTag.contains(packageInfo.version)) {
-          return true;
-        }
+        if (_latestVersionTag.isNotEmpty && !_latestVersionTag.contains(packageInfo.version)) return true;
       }
     } catch (_) {}
     return false;
   }
 
   static Future<void> showUpdateNotification() async {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'update_channel', 'App Updates', importance: Importance.max, priority: Priority.high, icon: '@mipmap/ic_launcher');
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails('update_channel', 'App Updates', importance: Importance.max, priority: Priority.high, icon: '@mipmap/ic_launcher');
     await _notificationsPlugin.show(888, 'Update Available', 'bitFocus $_latestVersionTag is ready.', const NotificationDetails(android: androidDetails));
   }
 
@@ -62,24 +53,13 @@ class Updater {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Checking for updates...")));
     final hasUpdate = await checkForUpdateSilent();
     if (!context.mounted) return;
-    
-    if (hasUpdate) {
-      downloadAndInstallUpdate(context);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You are on the latest version.")));
-    }
+    if (hasUpdate) downloadAndInstallUpdate(context);
+    else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("You are on the latest version.")));
   }
 
   static Future<void> downloadAndInstallUpdate(BuildContext context) async {
     if (_latestDownloadUrl.isEmpty) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        title: Text("Downloading Update..."),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [LinearProgressIndicator(), SizedBox(height: 16), Text("Fetching APK from GitHub...")]),
-      ),
-    );
+    showDialog(context: context, barrierDismissible: false, builder: (context) => const AlertDialog(title: Text("Downloading Update..."), content: Column(mainAxisSize: MainAxisSize.min, children: [LinearProgressIndicator(), SizedBox(height: 16), Text("Fetching APK from GitHub...")])));
     try {
       final dir = await getExternalStorageDirectory();
       final savePath = "${dir!.path}/bitfocus_update.apk";
@@ -88,10 +68,7 @@ class Updater {
       if (context.mounted) Navigator.pop(context);
       await OpenFilex.open(savePath);
     } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to download update.")));
-      }
+      if (context.mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Failed to download update."))); }
     }
   }
 }

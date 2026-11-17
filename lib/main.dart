@@ -722,32 +722,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         setState(() => _index = i);
                       },
                       destinations: const [
-                        NavigationDestination(
-                          icon: Icon(Icons.landscape_outlined),
-                          selectedIcon: Icon(Icons.landscape_rounded),
-                          label: 'reset',
-                        ),
-                        NavigationDestination(
-                icon: Icon(Icons.shield_outlined),
-                          selectedIcon: Icon(Icons.shield_rounded),
-                          label: 'urges',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.bolt_outlined),
-                          selectedIcon: Icon(Icons.bolt_rounded),
-                          label: 'focus',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.insights_outlined),
-                          selectedIcon: Icon(Icons.insights_rounded),
-                          label: 'patterns',
-                        ),
-                        NavigationDestination(
-                          icon: Icon(Icons.pets_outlined),
-                          selectedIcon: Icon(Icons.pets_rounded),
-                          label: 'pet',
-                        ),
-                      ],
+          NavigationDestination(icon: Icon(Icons.landscape_outlined), selectedIcon: Icon(Icons.landscape_rounded), label: 'Reset'),
+          NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Shield'),
+          NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'Advisor'),
+          NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt_rounded), label: '15m Focus'),
+          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Patterns'),
+        ],
                     ),
                   ),
                 ),
