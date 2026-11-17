@@ -28,7 +28,7 @@ class _SetupScreenState extends State<SetupScreen> {
         widget.onSetupComplete();
       }
     } else if (status.isPermanentlyDenied) {
-      await openAppSettings(); // Bypasses Android 13+ restricted settings lock
+      await openAppSettings();
     }
     setState(() => _isChecking = false);
   }
