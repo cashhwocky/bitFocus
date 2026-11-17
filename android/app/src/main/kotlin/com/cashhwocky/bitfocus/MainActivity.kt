@@ -1,13 +1,16 @@
 package com.cashhwocky.bitfocus
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
+import android.os.Build
 import android.provider.Settings
 import android.text.TextUtils
 import android.util.Base64
@@ -43,6 +46,43 @@ class MainActivity : FlutterActivity() {
                     val json = call.argument<String>("json") ?: ""
                     val prefs = getSharedPreferences("bitfocus_state", Context.MODE_PRIVATE)
                     prefs.edit().putString("json", json).apply()
+                    result.success(true)
+                }
+                "loadPet" -> {
+                    val prefs = getSharedPreferences("bitfocus_state", Context.MODE_PRIVATE)
+                    result.success(prefs.getString("pet_json", null))
+                }
+                "savePet" -> {
+                    val json = call.argument<String>("json") ?: ""
+                    val prefs = getSharedPreferences("bitfocus_state", Context.MODE_PRIVATE)
+                    prefs.edit().putString("pet_json", json).apply()
+                    result.success(true)
+                }
+                "requestNotifPermission" -> {
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 9)
+                    }
+                    result.success(true)
+                }
+                "scheduleReminders" -> {
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    val hours = call.argument<Int>("hours") ?: 6
+                    val name = call.argument<String>("name") ?: "your friend"
+                    val prefs = getSharedPreferences(PetReminderReceiver.PREFS, Context.MODE_PRIVATE)
+                    prefs.edit()
+                        .putBoolean("enabled", enabled)
+                        .putInt("hours", hours)
+                        .putString("name", name)
+                        .apply()
+                    if (enabled) PetReminderReceiver.schedule(this, hours) else PetReminderReceiver.cancel(this)
+                    result.success(true)
+                }
+                "openNotificationSettings" -> {
+                    val i = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                        .putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                    startActivity(i)
                     result.success(true)
                 }
                 else -> result.notImplemented()

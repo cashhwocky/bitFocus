@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show FontFeature;
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'lowercase.dart';
+import 'pet.dart';
 import 'package:flutter/services.dart';
 
 const MethodChannel _native = MethodChannel('com.cashhwocky.bitfocus/media');
@@ -12,7 +14,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final model = AppModel();
   await model.load();
-  runApp(BitFocusApp(model: model));
+  final pet = PetModel();
+  await pet.load();
+  runApp(BitFocusApp(model: model, pet: pet));
 }
 
 // ============================================================================
@@ -411,7 +415,7 @@ Future<String?> promptText(
         controller: controller,
         autofocus: true,
         maxLength: maxLength,
-        decoration: InputDecoration(hintText: hint),
+        decoration: InputDecoration(hintText: hint.toLowerCase()),
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
@@ -423,7 +427,7 @@ Future<String?> promptText(
 
 InputDecoration roundedField(ColorScheme scheme, String hint) {
   return InputDecoration(
-    hintText: hint,
+    hintText: hint.toLowerCase(),
     filled: true,
     fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
     contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -506,7 +510,7 @@ class ScreenHeader extends StatelessWidget {
         const SizedBox(width: 12),
         IconButton.filledTonal(
           onPressed: onSettings,
-          tooltip: "Settings",
+          tooltip: "settings",
           icon: const Icon(Icons.settings_rounded),
         ),
       ],
@@ -603,7 +607,8 @@ class Countdown {
 // ============================================================================
 class BitFocusApp extends StatelessWidget {
   final AppModel model;
-  const BitFocusApp({super.key, required this.model});
+  final PetModel pet;
+  const BitFocusApp({super.key, required this.model, required this.pet});
 
   @override
   Widget build(BuildContext context) {
@@ -624,7 +629,7 @@ class BitFocusApp extends StatelessWidget {
           title: 'bitFocus',
           debugShowCheckedModeBanner: false,
           theme: theme,
-          home: MainShell(model: model),
+          home: MainShell(model: model, pet: pet),
         );
       },
     );
@@ -633,7 +638,8 @@ class BitFocusApp extends StatelessWidget {
 
 class MainShell extends StatefulWidget {
   final AppModel model;
-  const MainShell({super.key, required this.model});
+  final PetModel pet;
+  const MainShell({super.key, required this.model, required this.pet});
 
   @override
   State<MainShell> createState() => _MainShellState();
@@ -666,7 +672,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _openSettings() {
     widget.model.tap();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => SettingsScreen(model: widget.model)),
+      MaterialPageRoute<void>(builder: (_) => SettingsScreen(model: widget.model, pet: widget.pet)),
     );
   }
 
@@ -680,6 +686,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       UrgeScreen(model: model, onOpenSettings: _openSettings),
       FocusScreen(model: model, onOpenSettings: _openSettings),
       PatternsScreen(model: model, onOpenSettings: _openSettings),
+      PetScreen(model: model, pet: widget.pet, onOpenSettings: _openSettings),
     ];
 
     return Scaffold(
@@ -711,22 +718,27 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         NavigationDestination(
                           icon: Icon(Icons.landscape_outlined),
                           selectedIcon: Icon(Icons.landscape_rounded),
-                          label: 'Reset',
+                          label: 'reset',
                         ),
                         NavigationDestination(
                           icon: Icon(Icons.shield_outlined),
                           selectedIcon: Icon(Icons.shield_rounded),
-                          label: 'Urges',
+                          label: 'urges',
                         ),
                         NavigationDestination(
                           icon: Icon(Icons.bolt_outlined),
                           selectedIcon: Icon(Icons.bolt_rounded),
-                          label: 'Focus',
+                          label: 'focus',
                         ),
                         NavigationDestination(
                           icon: Icon(Icons.insights_outlined),
                           selectedIcon: Icon(Icons.insights_rounded),
-                          label: 'Patterns',
+                          label: 'patterns',
+                        ),
+                        NavigationDestination(
+                          icon: Icon(Icons.pets_outlined),
+                          selectedIcon: Icon(Icons.pets_rounded),
+                          label: 'pet',
                         ),
                       ],
                     ),
@@ -830,7 +842,7 @@ class _NowPlayingMiniState extends State<NowPlayingMini> {
               child: const Text("Allow"),
             ),
             IconButton(
-              tooltip: "Hide",
+              tooltip: "hide",
               visualDensity: VisualDensity.compact,
               onPressed: () => widget.model.setShowMusic(false),
               icon: const Icon(Icons.close_rounded, size: 18),
@@ -1041,7 +1053,7 @@ class _ResetScreenState extends State<ResetScreen> with SingleTickerProviderStat
                       ),
                       IconButton.filledTonal(
                         onPressed: widget.onOpenSettings,
-                        tooltip: "Settings",
+                        tooltip: "settings",
                         icon: const Icon(Icons.settings_rounded),
                       ),
                     ],
@@ -1111,7 +1123,7 @@ class _ResetScreenState extends State<ResetScreen> with SingleTickerProviderStat
                                 model.tap();
                                 _count.reset();
                               },
-                              tooltip: "Reset timer",
+                              tooltip: "reset timer",
                               icon: const Icon(Icons.restart_alt_rounded),
                             ),
                           ],
@@ -1156,7 +1168,7 @@ class _ResetScreenState extends State<ResetScreen> with SingleTickerProviderStat
                             model.tap();
                             setState(() => _idea = (_idea + 1) % kPauseIdeas.length);
                           },
-                          tooltip: "Another idea",
+                          tooltip: "another idea",
                           icon: const Icon(Icons.refresh_rounded),
                         ),
                       ],
@@ -1397,7 +1409,7 @@ class _UrgeScreenState extends State<UrgeScreen> {
                     ),
                     IconButton(
                       onPressed: _restart,
-                      tooltip: "Start over",
+                      tooltip: "start over",
                       icon: const Icon(Icons.restart_alt_rounded),
                     ),
                   ],
@@ -1465,7 +1477,7 @@ class _UrgeScreenState extends State<UrgeScreen> {
                       model.addReminder(_reminder.text);
                       _reminder.clear();
                     },
-                    tooltip: "Add reminder",
+                    tooltip: "add reminder",
                     icon: const Icon(Icons.add_rounded),
                   ),
                 ],
@@ -1670,7 +1682,7 @@ class _FocusScreenState extends State<FocusScreen> {
                               model.tap();
                               _count.reset();
                             },
-                            tooltip: "Reset timer",
+                            tooltip: "reset timer",
                             icon: const Icon(Icons.restart_alt_rounded),
                           ),
                         ],
@@ -1698,7 +1710,7 @@ class _FocusScreenState extends State<FocusScreen> {
                       model.tap();
                       if (_task.text.trim().isNotEmpty) _setTask(_task.text);
                     },
-                    tooltip: "Set step",
+                    tooltip: "set step",
                     icon: const Icon(Icons.check_rounded),
                   ),
                 ],
@@ -1786,14 +1798,14 @@ class _PatternsScreenState extends State<PatternsScreen> {
               IconButton.filledTonal(
                 visualDensity: VisualDensity.compact,
                 onPressed: onMinus,
-                tooltip: "Remove one",
+                tooltip: "remove one",
                 icon: const Icon(Icons.remove_rounded),
               ),
               const SizedBox(width: 6),
               IconButton.filled(
                 visualDensity: VisualDensity.compact,
                 onPressed: onPlus,
-                tooltip: "Add one",
+                tooltip: "add one",
                 icon: const Icon(Icons.add_rounded),
               ),
             ],
@@ -2033,7 +2045,8 @@ class MinutesPicker extends StatelessWidget {
 
 class SettingsScreen extends StatelessWidget {
   final AppModel model;
-  const SettingsScreen({super.key, required this.model});
+  final PetModel pet;
+  const SettingsScreen({super.key, required this.model, required this.pet});
 
   Future<void> _rename(BuildContext context, {
     required String title,
@@ -2177,6 +2190,7 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                PetSettingsSection(pet: pet),
                 const SectionLabel("Music"),
                 Panel(
                   padding: const EdgeInsets.fromLTRB(20, 8, 12, 8),
