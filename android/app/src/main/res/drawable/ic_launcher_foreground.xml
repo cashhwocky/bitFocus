@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer soft focus ring -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#8CA6FF"
+        android:strokeWidth="4.5"
+        android:pathData="M54,28 A26,26 0 1,1 53.99,28 Z" />
+    <!-- Inner calm horizon wave -->
+    <path
+        android:fillColor="#7CF5D4"
+        android:pathData="M34,58 Q44,46 54,55 T74,52 L74,66 Q54,74 34,66 Z" />
+    <!-- Center anchor spark -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,37 L57,44 L64,47 L57,50 L54,57 L51,50 L44,47 L51,44 Z" />
+</vector>

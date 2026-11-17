@@ -1,0 +1,45 @@
+name: Build bitFocus Release APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Release APK
+        run: flutter build apk --release
+
+      - name: Publish GitHub Release with APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: bitFocus v1.0.${{ github.run_number }}
+          body: |
+            Automated release build of **bitFocus** for Android (Pixel / AOSP).
+            - Custom Adaptive Icon & Material You Multi-Theme Switcher (No AMOLED black)
+            - Live Android MediaSession Now-Playing Mini Player
+            - Generative Aurora & Mountain Reset Timer
+            - No-Contact Reality Check Vault & Impulse Burn Box
+            - 15-Minute School Anti-Overwhelm Launcher & Crash Forensics
+          files: build/app/outputs/flutter-apk/app-release.apk
