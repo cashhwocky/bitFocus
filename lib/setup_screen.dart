@@ -25,10 +25,10 @@ class _SetupScreenState extends State<SetupScreen> {
       await prefs.setBool('setup_complete', true);
       if (mounted) {
         HapticFeedback.heavyImpact();
-        widget.onSetupComplete(); // Unlocks main app instantly
+        widget.onSetupComplete();
       }
     } else if (status.isPermanentlyDenied) {
-      await openAppSettings();
+      await openAppSettings(); // Bypasses Android 13+ restricted settings lock
     }
     setState(() => _isChecking = false);
   }
