@@ -11,6 +11,7 @@ import 'player.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'setup_screen.dart';
+import 'ai_chat_screen.dart';
 
 bool _hasCompletedSetup = false;
 
@@ -727,7 +728,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           label: 'reset',
                         ),
                         NavigationDestination(
-                          icon: Icon(Icons.shield_outlined),
+                icon: Icon(Icons.chat_bubble_outline_rounded),
+                selectedIcon: Icon(Icons.chat_bubble_rounded),
+                label: 'Advisor',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.shield_outlined),
                           selectedIcon: Icon(Icons.shield_rounded),
                           label: 'urges',
                         ),
