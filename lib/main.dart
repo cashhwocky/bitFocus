@@ -9,6 +9,10 @@ import 'lowercase.dart';
 import 'pet.dart';
 import 'player.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'setup_screen.dart';
+
+bool _hasCompletedSetup = false;
 
 const MethodChannel _native = MethodChannel('com.cashhwocky.bitfocus/media');
 
@@ -390,7 +394,7 @@ Future<bool> confirmDialog(
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: danger
-                ? FilledButton.styleFrom(backgroundColor: scheme.error, foregroundColor: scheme.onError)
+                ? FilledButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white)
                 : null,
             child: Text(action),
           ),
