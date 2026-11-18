@@ -11,6 +11,7 @@ import 'player.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'setup_screen.dart';
+import 'tab_dock.dart';
 import 'ai_chat_screen.dart';
 import 'updater.dart';
 
@@ -85,6 +86,7 @@ class AppModel extends ChangeNotifier {
   int themeIndex = 0;
   bool haptics = true;
   bool showMusic = true;
+  bool tabsLeft = false;
   int resetMinutes = 10;
   int sprintMinutes = 15;
   String focusTitle = kDefaultFocusTitle;
@@ -112,6 +114,7 @@ class AppModel extends ChangeNotifier {
         'themeIndex': themeIndex,
         'haptics': haptics,
         'showMusic': showMusic,
+        'tabsLeft': tabsLeft,
         'resetMinutes': resetMinutes,
         'sprintMinutes': sprintMinutes,
         'focusTitle': focusTitle,
@@ -131,6 +134,7 @@ class AppModel extends ChangeNotifier {
     themeIndex = (j['themeIndex'] as num?)?.toInt() ?? 0;
     haptics = (j['haptics'] as bool?) ?? true;
     showMusic = (j['showMusic'] as bool?) ?? true;
+    tabsLeft = (j['tabsLeft'] as bool?) ?? false;
     resetMinutes = (j['resetMinutes'] as num?)?.toInt() ?? 10;
     sprintMinutes = (j['sprintMinutes'] as num?)?.toInt() ?? 15;
     focusTitle = (j['focusTitle'] as String?) ?? kDefaultFocusTitle;
@@ -224,6 +228,11 @@ class AppModel extends ChangeNotifier {
 
   void setShowMusic(bool v) {
     showMusic = v;
+    _changed();
+  }
+
+  void setTabsLeft(bool v) {
+    tabsLeft = v;
     _changed();
   }
 
@@ -337,6 +346,7 @@ class AppModel extends ChangeNotifier {
     themeIndex = 0;
     haptics = true;
     showMusic = true;
+    tabsLeft = false;
     resetMinutes = 10;
     sprintMinutes = 15;
     focusTitle = kDefaultFocusTitle;
@@ -638,7 +648,7 @@ class BitFocusApp extends StatelessWidget {
           title: 'bitFocus',
           debugShowCheckedModeBanner: false,
           theme: theme,
-          home: MainShell(model: model, pet: pet),
+          home: AppGate(model: model, pet: pet),
         );
       },
     );
@@ -686,10 +696,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
+  static const List<TabItem> _tabs = [
+    TabItem(Icons.landscape_outlined, Icons.landscape_rounded, 'reset'),
+    TabItem(Icons.shield_outlined, Icons.shield_rounded, 'shield'),
+    TabItem(Icons.chat_bubble_outline_rounded, Icons.chat_bubble_rounded, 'advisor'),
+    TabItem(Icons.bolt_outlined, Icons.bolt_rounded, 'focus'),
+    TabItem(Icons.insights_outlined, Icons.insights_rounded, 'patterns'),
+    TabItem(Icons.pets_outlined, Icons.pets_rounded, 'friend'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final model = widget.model;
-    final scheme = Theme.of(context).colorScheme;
 
     final pages = <Widget>[
       ResetScreen(model: model, onOpenSettings: _openSettings),
@@ -700,38 +718,36 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       PetScreen(model: model, pet: widget.pet, onOpenSettings: _openSettings),
     ];
 
-    return Scaffold(
-      body: IndexedStack(index: _index, children: pages),
-      bottomNavigationBar: ListenableBuilder(
-        listenable: model,
-        builder: (context, _) {
-          return SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    void select(int i) {
+      model.tap();
+      setState(() => _index = i);
+    }
+
+    return ListenableBuilder(
+      listenable: model,
+      builder: (context, _) {
+        final content = IndexedStack(index: _index, children: pages);
+        final player = model.showMusic ? NowPlayingMini(model: model) : null;
+
+        if (model.tabsLeft) {
+          final bottomInset = MediaQuery.of(context).padding.bottom;
+          return Scaffold(
+            body: Row(
               children: [
-                if (model.showMusic) NowPlayingMini(model: model),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(34),
-                    child: NavigationBar(
-                      height: 68,
-                      elevation: 0,
-                      backgroundColor: scheme.surfaceContainerHigh,
-                      indicatorShape: const StadiumBorder(),
-                      selectedIndex: _index,
-                      onDestinationSelected: (i) {
-                        model.tap();
-                        setState(() => _index = i);
-                      },
-                      destinations: const [
-                        NavigationDestination(icon: Icon(Icons.landscape_outlined), selectedIcon: Icon(Icons.landscape_rounded), label: 'reset'),
-                        NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'shield'),
-                        NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'advisor'),
-                        NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt_rounded), label: 'focus'),
-                        NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'patterns'),
-                        NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets_rounded), label: 'friend'),
+                SafeArea(
+                  right: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 0, 8),
+                    child: TabDock(items: _tabs, index: _index, onSelect: select, vertical: true),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: bottomInset),
+                    child: Column(
+                      children: [
+                        Expanded(child: content),
+                        if (player != null) player,
                       ],
                     ),
                   ),
@@ -739,8 +755,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ],
             ),
           );
-        },
-      ),
+        }
+
+        return Scaffold(
+          body: content,
+          bottomNavigationBar: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (player != null) player,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                  child: TabDock(items: _tabs, index: _index, onSelect: select),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -1016,13 +1049,15 @@ class _ResetScreenState extends State<ResetScreen> with SingleTickerProviderStat
                 Positioned.fill(
                   child: AnimatedBuilder(
                     animation: _scene,
-                    builder: (context, _) => CustomPaint(
+                    builder: (context, _) => RepaintBoundary(
+                      child: CustomPaint(
                       painter: AuroraMountainPainter(
                         phase: _scene.value,
                         progress: progress,
                         isRunning: _count.running,
                         style: style,
                         surfaceColor: scheme.surface,
+                      ),
                       ),
                     ),
                   ),
@@ -1230,31 +1265,33 @@ class AuroraMountainPainter extends CustomPainter {
       canvas.drawCircle(Offset(sx, sy), radius, starPaint);
     }
 
-    final auroraPath = Path();
+    // soft aurora bands. Each band fades to fully transparent at its own bottom edge,
+    // so there is no hard line and no blur filter (the blur caused flicker on the timer).
     final waveShift = phase * 2 * math.pi;
-    auroraPath.moveTo(0, h * 0.24);
-    for (double x = 0; x <= w; x += 12) {
-      final y = h * 0.22 +
-          math.sin((x / w * 3.2) + waveShift) * 26 +
-          math.cos((x / w * 5.0) - waveShift * 1.5) * 12;
-      auroraPath.lineTo(x, y);
+    for (int layer = 0; layer < 3; layer++) {
+      final shift = waveShift * (1.0 + layer * 0.35) + layer * 1.9;
+      final top = h * (0.17 + layer * 0.035);
+      final bottom = top + h * 0.20;
+      final bandPath = Path()
+        ..moveTo(0, bottom)
+        ..lineTo(0, top);
+      for (double x = 0; x <= w; x += 12) {
+        final y = top +
+            math.sin((x / w * (2.6 + layer * 0.5)) + shift) * 22 +
+            math.cos((x / w * 4.4) - shift * 1.4) * 10;
+        bandPath.lineTo(x, y);
+      }
+      bandPath.lineTo(w, bottom);
+      bandPath.close();
+      final a = (isRunning ? 0.30 : 0.16) - layer * 0.04;
+      final bandPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [style.seed.withValues(alpha: a), style.seed.withValues(alpha: 0.0)],
+        ).createShader(Rect.fromLTWH(0, top - 36, w, (bottom - top) + 36));
+      canvas.drawPath(bandPath, bandPaint);
     }
-    auroraPath.lineTo(w, h * 0.44);
-    auroraPath.lineTo(0, h * 0.44);
-    auroraPath.close();
-
-    final auroraPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          style.seed.withValues(alpha: isRunning ? 0.34 : 0.18),
-          style.seed.withValues(alpha: 0.04),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromLTWH(0, h * 0.14, w, h * 0.34))
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    canvas.drawPath(auroraPath, auroraPaint);
 
     final breath = 0.5 + 0.5 * math.sin(phase * 2 * math.pi * 3);
     final haloRadius = (w * 0.30) + (breath * 14);
@@ -1262,7 +1299,7 @@ class AuroraMountainPainter extends CustomPainter {
       ..shader = RadialGradient(
         colors: [
           style.seed.withValues(alpha: isRunning ? 0.25 : 0.12),
-          Colors.transparent,
+          style.seed.withValues(alpha: 0.0),
         ],
       ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: haloRadius));
     canvas.drawCircle(Offset(cx, cy), haloRadius, haloPaint);
@@ -2143,6 +2180,19 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SectionLabel("Layout"),
+                Panel(
+                  child: SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text("Tabs on the left"),
+                    subtitle: const Text("Show the tabs as a side bar, with your page on the right"),
+                    value: model.tabsLeft,
+                    onChanged: (v) {
+                      model.tap();
+                      model.setTabsLeft(v);
+                    },
+                  ),
+                ),
                 const SectionLabel("Timers"),
                 Panel(
                   child: Column(
@@ -2325,6 +2375,26 @@ class SettingsScreen extends StatelessWidget {
                         ),
                       ),
                     ],
+                  ),
+                ),
+                const SectionLabel("Help"),
+                Panel(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    leading: const Icon(Icons.help_outline_rounded),
+                    title: const Text("How to use bitFocus"),
+                    subtitle: const Text("Quick guide, privacy note, and permissions"),
+                    onTap: () {
+                      model.tap();
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (ctx) => SetupScreen(
+                            reviewMode: true,
+                            onSetupComplete: () => Navigator.of(ctx).pop(),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SectionLabel("Updates"),

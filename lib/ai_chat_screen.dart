@@ -1,15 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'lowercase.dart';
 
 const String _system =
-    "You are bitFocus Advisor inside a calm focus and urge-control app. Give real, practical advice in plain, warm, "
-    "direct language. Keep replies under 120 words. Ask at most one question. Offer a concrete next step the person "
-    "can do in the next five minutes. You are not a therapist and never diagnose or give medication doses. If someone "
-    "mentions hurting themselves or someone else, respond with care and tell them to call or text 988 (US) or their "
-    "local emergency number and to reach a person they trust right now.";
+    "you are the advisor inside a calm focus and urge-control app. reply in plain, warm, direct language, "
+    "written entirely in lowercase letters. keep replies under 90 words. ask at most one question. give one "
+    "concrete step the person can do in the next five minutes. you are not a therapist and never diagnose or "
+    "give medication doses. if someone mentions hurting themselves or someone else, respond with care and tell "
+    "them to call or text 988 (us) or their local emergency number and to reach a person they trust right now.";
+
+const String _greeting = "i'm here. what's on your mind?";
 
 const String _crisisText =
     "If you might hurt yourself or someone else, please call or text 988 (US) or your local emergency number right now, "
@@ -43,11 +47,44 @@ const List<_Emo> _emos = [
 ];
 
 class _Msg {
-  final String text;
+  String text;
   final bool user;
-  final String? tag;
-  const _Msg(this.text, this.user, {this.tag});
+  String? tag;
+  _Msg(this.text, this.user, {this.tag});
+
+  Map<String, dynamic> toJson() => {'t': text, 'u': user, 'g': tag};
+
+  factory _Msg.fromJson(Map<String, dynamic> j) =>
+      _Msg((j['t'] as String?) ?? '', (j['u'] as bool?) ?? false, tag: j['g'] as String?);
+
+  _Msg copy() => _Msg(text, user, tag: tag);
 }
+
+class _Chat {
+  final String id;
+  String title;
+  int updated;
+  List<_Msg> msgs;
+  _Chat({required this.id, required this.title, required this.updated, required this.msgs});
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'updated': updated,
+        'msgs': msgs.map((m) => m.toJson()).toList(),
+      };
+
+  factory _Chat.fromJson(Map<String, dynamic> j) => _Chat(
+        id: (j['id'] as String?) ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        title: (j['title'] as String?) ?? 'chat',
+        updated: (j['updated'] as num?)?.toInt() ?? 0,
+        msgs: ((j['msgs'] as List?) ?? const [])
+            .map((e) => _Msg.fromJson(Map<String, dynamic>.from(e as Map)))
+            .toList(),
+      );
+}
+
+String _newId() => DateTime.now().microsecondsSinceEpoch.toString();
 
 class AiChatScreen extends StatefulWidget {
   const AiChatScreen({super.key});
@@ -56,11 +93,23 @@ class AiChatScreen extends StatefulWidget {
 }
 
 class _AiChatScreenState extends State<AiChatScreen> {
+  static const String _prefsKey = 'advisor_chats_v1';
+
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
-  final List<_Msg> _msgs = [const _Msg("I'm here. What's on your mind?", false)];
+
+  List<_Chat> _chats = [];
+  String _currentId = _newId();
+  List<_Msg> _msgs = [_Msg(_greeting, false)];
   bool _busy = false;
   int _emo = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChats();
+  }
 
   @override
   void dispose() {
@@ -69,6 +118,118 @@ class _AiChatScreenState extends State<AiChatScreen> {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------- history
+  Future<void> _loadChats() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      final raw = p.getString(_prefsKey);
+      if (raw != null && raw.isNotEmpty) {
+        final list = jsonDecode(raw) as List;
+        _chats = list.map((e) => _Chat.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+        _chats.sort((a, b) => b.updated.compareTo(a.updated));
+      }
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _persist() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setString(_prefsKey, jsonEncode(_chats.map((c) => c.toJson()).toList()));
+    } catch (_) {}
+  }
+
+  void _saveCurrent() {
+    final firstUser = _msgs.where((m) => m.user).toList();
+    if (firstUser.isEmpty) return;
+    final raw = firstUser.first.text.trim();
+    final title = raw.length > 34 ? '${raw.substring(0, 34)}…' : raw;
+    final trimmed = _msgs.length > 80 ? _msgs.sublist(_msgs.length - 80) : _msgs;
+    final chat = _Chat(
+      id: _currentId,
+      title: title,
+      updated: DateTime.now().millisecondsSinceEpoch,
+      msgs: trimmed.map((m) => m.copy()).toList(),
+    );
+    final i = _chats.indexWhere((c) => c.id == _currentId);
+    if (i >= 0) {
+      _chats.removeAt(i);
+    }
+    _chats.insert(0, chat);
+    if (_chats.length > 40) _chats = _chats.sublist(0, 40);
+    _persist();
+    if (mounted) setState(() {});
+  }
+
+  void _newChat() {
+    if (_busy) return;
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _currentId = _newId();
+      _msgs = [_Msg(_greeting, false)];
+      _emo = -1;
+    });
+  }
+
+  void _openChat(_Chat c) {
+    if (_busy) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _currentId = c.id;
+      _msgs = c.msgs.map((m) => m.copy()).toList();
+      _emo = -1;
+    });
+    _scaffoldKey.currentState?.closeDrawer();
+    _jumpToEnd();
+  }
+
+  void _deleteChat(_Chat c) {
+    HapticFeedback.selectionClick();
+    setState(() => _chats.removeWhere((x) => x.id == c.id));
+    _persist();
+    if (c.id == _currentId && !_busy) {
+      setState(() {
+        _currentId = _newId();
+        _msgs = [_Msg(_greeting, false)];
+        _emo = -1;
+      });
+    }
+  }
+
+  Future<void> _clearAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("clear all history?"),
+        content: const Text("this deletes every saved advisor chat on this device."),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("cancel")),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("clear")),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _chats = []);
+    _persist();
+    if (!_busy) {
+      setState(() {
+        _currentId = _newId();
+        _msgs = [_Msg(_greeting, false)];
+        _emo = -1;
+      });
+    }
+  }
+
+  String _ago(int ms) {
+    final d = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(ms));
+    if (d.inMinutes < 1) return "just now";
+    if (d.inMinutes < 60) return "${d.inMinutes}m ago";
+    if (d.inHours < 24) return "${d.inHours}h ago";
+    if (d.inDays < 7) return "${d.inDays}d ago";
+    return "${(d.inDays / 7).floor()}w ago";
+  }
+
+  // ---------------------------------------------------------------- emotion
   int _detect(String text) {
     final words = RegExp(r"[a-z']+").allMatches(text.toLowerCase()).map((m) => m.group(0)!).toList();
     for (var i = words.length - 1; i >= 0; i--) {
@@ -84,11 +245,10 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return _crisisWords.any(t.contains);
   }
 
+  // No haptics while typing: the system keyboard already vibrates.
   void _onChanged(String t) {
-    HapticFeedback.selectionClick();
     final e = _detect(t);
     if (e != -1 && e != _emo) {
-      HapticFeedback.heavyImpact();
       setState(() => _emo = e);
     }
   }
@@ -98,86 +258,239 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (_scroll.hasClients) {
         _scroll.animateTo(
           _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 250),
+          duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
         );
       }
     });
   }
 
+  void _jumpToEnd() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+    });
+  }
+
+  // ---------------------------------------------------------------- sending
   Future<void> _send() async {
     final text = _input.text.trim();
     if (text.isEmpty || _busy) return;
-    HapticFeedback.heavyImpact();
+    HapticFeedback.mediumImpact();
     _input.clear();
     final e = _detect(text);
+    final reply = _Msg('', false);
     setState(() {
       if (e != -1) _emo = e;
       _msgs.add(_Msg(text, true));
-      if (_isCrisis(text)) _msgs.add(const _Msg(_crisisText, false, tag: 'safety'));
+      if (_isCrisis(text)) _msgs.add(_Msg(_crisisText, false, tag: 'safety'));
+      _msgs.add(reply);
       _busy = true;
     });
     _toEnd();
-    final reply = await _ask();
+    await _ask(reply);
     if (!mounted) return;
-    HapticFeedback.heavyImpact();
-    Future.delayed(const Duration(milliseconds: 140), HapticFeedback.mediumImpact);
-    setState(() {
-      _msgs.add(reply);
-      _busy = false;
-    });
+    setState(() => _busy = false);
+    HapticFeedback.mediumImpact();
+    _saveCurrent();
     _toEnd();
   }
 
-  // 1) Pollinations OpenAI-style endpoint  2) Pollinations GET endpoint  3) offline coach.
-  // No API key anywhere. These are free third-party services and can be slow or change.
-  Future<_Msg> _ask() async {
-    final history = _msgs.where((m) => m.tag == null).toList();
-    final recent = history.length > 10 ? history.sublist(history.length - 10) : history;
+  String? _extractText(String body) {
+    try {
+      final data = jsonDecode(body);
+      final t = (data['choices'][0]['message']['content'] as String?)?.trim();
+      if (t != null && t.isNotEmpty) return t;
+      return null;
+    } catch (_) {
+      final t = body.trim();
+      return t.isEmpty ? null : t;
+    }
+  }
+
+  // Streams the reply token by token so text appears almost immediately.
+  Future<bool> _stream(String model, List<Map<String, String>> messages, _Msg target) async {
+    final client = http.Client();
+    try {
+      final req = http.Request('POST', Uri.parse('https://text.pollinations.ai/openai'))
+        ..headers['Content-Type'] = 'application/json'
+        ..body = jsonEncode({
+          'model': model,
+          'messages': messages,
+          'stream': true,
+          'max_tokens': 260,
+          'private': true,
+        });
+      final res = await client.send(req).timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) return false;
+
+      final type = res.headers['content-type'] ?? '';
+      if (!type.contains('event-stream')) {
+        final body = await res.stream.bytesToString();
+        final t = _extractText(body);
+        if (t == null) return false;
+        if (mounted) setState(() => target.text = t);
+        return true;
+      }
+
+      var got = false;
+      final lines = res.stream
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())
+          .timeout(const Duration(seconds: 15), onTimeout: (sink) => sink.close());
+      await for (final line in lines) {
+        if (!line.startsWith('data:')) continue;
+        final data = line.substring(5).trim();
+        if (data == '[DONE]') break;
+        try {
+          final j = jsonDecode(data);
+          final choices = j['choices'];
+          if (choices is List && choices.isNotEmpty) {
+            final delta = choices[0]['delta'];
+            final piece = delta is Map ? (delta['content'] as String?) : null;
+            if (piece != null && piece.isNotEmpty) {
+              got = true;
+              target.text += piece;
+              if (mounted) setState(() {});
+              _jumpToEnd();
+            }
+          }
+        } catch (_) {}
+      }
+      return got;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close();
+    }
+  }
+
+  // 1) fast model streaming  2) normal model streaming  3) plain GET  4) offline tip
+  Future<void> _ask(_Msg target) async {
+    final history = _msgs.where((m) => m.tag == null && !identical(m, target)).toList();
+    final recent = history.length > 6 ? history.sublist(history.length - 6) : history;
     final messages = <Map<String, String>>[
       {'role': 'system', 'content': _system},
       for (final m in recent) {'role': m.user ? 'user' : 'assistant', 'content': m.text},
     ];
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        final res = await http
-            .post(
-              Uri.parse('https://text.pollinations.ai/openai'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({'model': 'openai', 'messages': messages, 'private': true}),
-            )
-            .timeout(const Duration(seconds: 30));
-        if (res.statusCode == 200) {
-          final data = jsonDecode(utf8.decode(res.bodyBytes));
-          final t = (data['choices'][0]['message']['content'] as String?)?.trim();
-          if (t != null && t.isNotEmpty) return _Msg(t, false);
-        }
-        if (res.statusCode == 429) {
-          await Future.delayed(const Duration(seconds: 6));
-          continue;
-        }
-        break;
-      } catch (_) {
-        break;
-      }
+
+    for (final model in const ['openai-fast', 'openai']) {
+      target.text = '';
+      if (await _stream(model, messages, target)) return;
     }
+
     try {
       var convo = '';
       for (final m in recent.length > 4 ? recent.sublist(recent.length - 4) : recent) {
         final t = m.text.length > 300 ? m.text.substring(0, 300) : m.text;
-        convo += '${m.user ? "User" : "Advisor"}: $t\n';
+        convo += '${m.user ? "user" : "advisor"}: $t\n';
       }
-      final uri = Uri.parse('https://text.pollinations.ai/${Uri.encodeComponent('$convo' 'Advisor:')}')
-          .replace(queryParameters: {'model': 'openai', 'system': _system, 'private': 'true'});
-      final res = await http.get(uri).timeout(const Duration(seconds: 30));
+      final uri = Uri.parse('https://text.pollinations.ai/${Uri.encodeComponent('${convo}advisor:')}')
+          .replace(queryParameters: {'model': 'openai-fast', 'system': _system, 'private': 'true'});
+      final res = await http.get(uri).timeout(const Duration(seconds: 15));
       if (res.statusCode == 200 && res.body.trim().isNotEmpty) {
-        return _Msg(utf8.decode(res.bodyBytes).trim(), false);
+        if (mounted) setState(() => target.text = utf8.decode(res.bodyBytes).trim());
+        return;
       }
     } catch (_) {}
+
     final tip = _emo >= 0
         ? _emos[_emo].tips
         : "I can't reach the AI service right now. Try this meanwhile: drink some water, take 10 slow breaths, and do one small thing for 5 minutes.";
-    return _Msg(tip, false, tag: 'offline');
+    if (mounted) {
+      setState(() {
+        target.text = tip;
+        target.tag = 'offline';
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- ui
+  Widget _drawer(ColorScheme scheme) {
+    return Drawer(
+      backgroundColor: scheme.surfaceContainerLow,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.horizontal(right: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+              child: Row(
+                children: [
+                  const Expanded(
+                    child: Text("history", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                  ),
+                  IconButton(
+                    tooltip: "close",
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () => _scaffoldKey.currentState?.closeDrawer(),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _busy
+                      ? null
+                      : () {
+                          _newChat();
+                          _scaffoldKey.currentState?.closeDrawer();
+                        },
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text("new chat"),
+                ),
+              ),
+            ),
+            Expanded(
+              child: _chats.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(
+                          "no past chats yet.\nyour conversations will show up here.",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+                        ),
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
+                      itemCount: _chats.length,
+                      itemBuilder: (ctx, i) {
+                        final c = _chats[i];
+                        return ListTile(
+                          selected: c.id == _currentId,
+                          selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(_ago(c.updated), style: const TextStyle(fontSize: 12)),
+                          trailing: IconButton(
+                            tooltip: "delete chat",
+                            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                            onPressed: () => _deleteChat(c),
+                          ),
+                          onTap: () => _openChat(c),
+                        );
+                      },
+                    ),
+            ),
+            if (_chats.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TextButton.icon(
+                  onPressed: _clearAll,
+                  icon: const Icon(Icons.delete_sweep_outlined, size: 18),
+                  label: const Text("clear all history"),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -187,9 +500,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
     final strong = _emo == -1 ? 0.10 : 0.42;
     final soft = _emo == -1 ? 0.05 : 0.24;
     const fast = Duration(milliseconds: 250);
-    return Material(
-      color: Colors.transparent,
-      child: Stack(
+
+    return Scaffold(
+      key: _scaffoldKey,
+      backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
+      drawer: _drawer(scheme),
+      body: Stack(
         children: [
           Positioned.fill(
             child: AnimatedContainer(
@@ -198,7 +515,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 gradient: RadialGradient(
                   center: const Alignment(0, -1.1),
                   radius: 1.15,
-                  colors: [glow.withValues(alpha: strong), Colors.transparent],
+                  colors: [glow.withValues(alpha: strong), glow.withValues(alpha: 0.0)],
                 ),
               ),
             ),
@@ -210,7 +527,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 gradient: RadialGradient(
                   center: const Alignment(0, 1.25),
                   radius: 0.95,
-                  colors: [glow.withValues(alpha: soft), Colors.transparent],
+                  colors: [glow.withValues(alpha: soft), glow.withValues(alpha: 0.0)],
                 ),
               ),
             ),
@@ -219,34 +536,25 @@ class _AiChatScreenState extends State<AiChatScreen> {
             child: Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 8, 4),
+                  padding: const EdgeInsets.fromLTRB(8, 12, 8, 4),
                   child: Row(
                     children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Advisor', style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'free AI, not a therapist. messages are sent to a third-party service, so keep names and private details out.',
-                              style: TextStyle(fontSize: 11.5, height: 1.3, color: scheme.onSurfaceVariant),
-                            ),
-                          ],
-                        ),
+                      IconButton(
+                        tooltip: "history",
+                        icon: const Icon(Icons.history_rounded),
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          _scaffoldKey.currentState?.openDrawer();
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      const Expanded(
+                        child: Text("advisor", style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700)),
                       ),
                       IconButton(
-                        tooltip: 'New chat',
+                        tooltip: "new chat",
                         icon: const Icon(Icons.add_comment_outlined),
-                        onPressed: () {
-                          HapticFeedback.mediumImpact();
-                          setState(() {
-                            _msgs
-                              ..clear()
-                              ..add(const _Msg("I'm here. What's on your mind?", false));
-                            _emo = -1;
-                          });
-                        },
+                        onPressed: _newChat,
                       ),
                     ],
                   ),
@@ -255,14 +563,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                   child: ListView.builder(
                     controller: _scroll,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
-                    itemCount: _msgs.length + (_busy ? 1 : 0),
+                    itemCount: _msgs.length,
                     itemBuilder: (ctx, i) {
-                      if (i == _msgs.length) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: Text('thinking...', style: TextStyle(color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic)),
-                        );
-                      }
                       final m = _msgs[i];
                       if (m.user) {
                         return Align(
@@ -278,6 +580,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           ),
                         );
                       }
+                      if (m.text.isEmpty) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          child: Text(
+                            "thinking...",
+                            style: TextStyle(color: scheme.onSurfaceVariant, fontStyle: FontStyle.italic),
+                          ),
+                        );
+                      }
                       final safety = m.tag == 'safety';
                       return Container(
                         margin: const EdgeInsets.only(bottom: 18, right: 24),
@@ -285,7 +596,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                         decoration: safety
                             ? BoxDecoration(
                                 color: const Color(0xFFFF3B30).withValues(alpha: 0.14),
-                                borderRadius: BorderRadius.circular(18),
+                                borderRadius: BorderRadius.circular(22),
                               )
                             : null,
                         child: Column(
@@ -294,9 +605,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
                             if (m.tag == 'offline')
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
-                                child: Text('offline tip', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+                                child: Text("offline tip", style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
                               ),
-                            SelectableText(m.text, style: const TextStyle(fontSize: 16, height: 1.5)),
+                            SelectableText(m.text.toLowerCase(), style: const TextStyle(fontSize: 16, height: 1.5)),
                           ],
                         ),
                       );
@@ -319,8 +630,8 @@ class _AiChatScreenState extends State<AiChatScreen> {
                           onChanged: _onChanged,
                           minLines: 1,
                           maxLines: 5,
-                          textCapitalization: TextCapitalization.sentences,
-                          decoration: const InputDecoration(border: InputBorder.none, hintText: 'Message'),
+                          textCapitalization: TextCapitalization.none,
+                          decoration: const InputDecoration(border: InputBorder.none, hintText: 'message'),
                         ),
                       ),
                       IconButton.filled(
