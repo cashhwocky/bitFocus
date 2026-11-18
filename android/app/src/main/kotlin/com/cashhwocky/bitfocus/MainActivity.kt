@@ -69,15 +69,15 @@ class MainActivity : FlutterActivity() {
                 }
                 "scheduleReminders" -> {
                     val enabled = call.argument<Boolean>("enabled") ?: false
-                    val hours = call.argument<Int>("hours") ?: 6
+                    val minutes = call.argument<Int>("minutes") ?: ((call.argument<Int>("hours") ?: 6) * 60)
                     val name = call.argument<String>("name") ?: "your friend"
                     val prefs = getSharedPreferences(PetReminderReceiver.PREFS, Context.MODE_PRIVATE)
                     prefs.edit()
                         .putBoolean("enabled", enabled)
-                        .putInt("hours", hours)
+                        .putInt("minutes", minutes)
                         .putString("name", name)
                         .apply()
-                    if (enabled) PetReminderReceiver.schedule(this, hours) else PetReminderReceiver.cancel(this)
+                    if (enabled) PetReminderReceiver.schedule(this, minutes) else PetReminderReceiver.cancel(this)
                     result.success(true)
                 }
                 "openNotificationSettings" -> {
@@ -86,6 +86,8 @@ class MainActivity : FlutterActivity() {
                     startActivity(i)
                     result.success(true)
                 }
+                "installApk" -> result.success(AppInstaller.install(this, call.argument<String>("path") ?: ""))
+                "isSystemApp" -> result.success(AppInstaller.isSystem(this))
                 else -> result.notImplemented()
             }
         }

@@ -17,7 +17,7 @@ class PetReminderReceiver : BroadcastReceiver() {
         val action = intent.action
         if (action != Intent.ACTION_BOOT_COMPLETED && action != ACTION_REMIND) return
 
-        val hours = prefs.getInt("hours", 6)
+        val minutes = if (prefs.contains("minutes")) prefs.getInt("minutes", 360) else prefs.getInt("hours", 6) * 60
         val name = prefs.getString("name", "your friend") ?: "your friend"
 
         if (action == ACTION_REMIND) {
@@ -25,7 +25,7 @@ class PetReminderReceiver : BroadcastReceiver() {
             // quiet hours: only nudge between 9am and 10pm
             if (hour in 9..21) post(context, name)
         }
-        schedule(context, hours)
+        schedule(context, minutes)
     }
 
     companion object {
@@ -50,9 +50,9 @@ class PetReminderReceiver : BroadcastReceiver() {
             )
         }
 
-        fun schedule(context: Context, hours: Int) {
+        fun schedule(context: Context, minutes: Int) {
             val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-            val trigger = System.currentTimeMillis() + hours * 3600_000L
+            val trigger = System.currentTimeMillis() + minutes * 60_000L
             am.setAndAllowWhileIdle(AlarmManager.RTC, trigger, pending(context))
         }
 

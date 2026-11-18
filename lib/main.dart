@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'setup_screen.dart';
 import 'ai_chat_screen.dart';
+import 'updater.dart';
 
 bool _hasCompletedSetup = false;
 
@@ -23,6 +24,7 @@ Future<void> main() async {
   await model.load();
   final pet = PetModel();
   await pet.load();
+  await Updater.init();
   runApp(BitFocusApp(model: model, pet: pet));
 }
 
@@ -659,6 +661,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => Updater.autoUpdateOnLaunch());
   }
 
   @override
@@ -691,6 +694,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     final pages = <Widget>[
       ResetScreen(model: model, onOpenSettings: _openSettings),
       UrgeScreen(model: model, onOpenSettings: _openSettings),
+      const AiChatScreen(),
       FocusScreen(model: model, onOpenSettings: _openSettings),
       PatternsScreen(model: model, onOpenSettings: _openSettings),
       PetScreen(model: model, pet: widget.pet, onOpenSettings: _openSettings),
@@ -722,12 +726,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         setState(() => _index = i);
                       },
                       destinations: const [
-          NavigationDestination(icon: Icon(Icons.landscape_outlined), selectedIcon: Icon(Icons.landscape_rounded), label: 'Reset'),
-          NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'Shield'),
-          NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'Advisor'),
-          NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt_rounded), label: '15m Focus'),
-          NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Patterns'),
-        ],
+                        NavigationDestination(icon: Icon(Icons.landscape_outlined), selectedIcon: Icon(Icons.landscape_rounded), label: 'reset'),
+                        NavigationDestination(icon: Icon(Icons.shield_outlined), selectedIcon: Icon(Icons.shield_rounded), label: 'shield'),
+                        NavigationDestination(icon: Icon(Icons.chat_bubble_outline_rounded), selectedIcon: Icon(Icons.chat_bubble_rounded), label: 'advisor'),
+                        NavigationDestination(icon: Icon(Icons.bolt_outlined), selectedIcon: Icon(Icons.bolt_rounded), label: 'focus'),
+                        NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'patterns'),
+                        NavigationDestination(icon: Icon(Icons.pets_outlined), selectedIcon: Icon(Icons.pets_rounded), label: 'friend'),
+                      ],
                     ),
                   ),
                 ),
@@ -1421,7 +1426,7 @@ class _UrgeScreenState extends State<UrgeScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.air_rounded, color: scheme.primary, size: 22),
+                        const Icon(Icons.bolt_rounded, color: Color(0xFFE53935), size: 22),
                         const SizedBox(width: 8),
                         const Text("Write it out, then disintegrate it", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                       ],
@@ -1452,8 +1457,15 @@ class _UrgeScreenState extends State<UrgeScreen> {
                     Align(
                       alignment: Alignment.centerRight,
                       child: FilledButton.icon(
-                        onPressed: _release,
-                        icon: const Icon(Icons.air_rounded, size: 18),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: const Color(0xFFE53935),
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () {
+                          HapticFeedback.heavyImpact();
+                          _release();
+                        },
+                        icon: const mat.Text("\u26A1", style: TextStyle(fontSize: 18)),
                         label: const Text("Disintegrate"),
                       ),
                     ),
@@ -2315,6 +2327,19 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                 ),
+                const SectionLabel("Updates"),
+                Panel(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: ListTile(
+                    leading: const Icon(Icons.system_update_rounded),
+                    title: const Text("Check for updates"),
+                    subtitle: const Text("Downloads the newest release from GitHub"),
+                    onTap: () {
+                      model.tap();
+                      Updater.checkForUpdateUI(context);
+                    },
+                  ),
+                ),
                 const SectionLabel("Support"),
                 Panel(
                   color: scheme.secondaryContainer,
@@ -2337,7 +2362,7 @@ class SettingsScreen extends StatelessWidget {
                 const SectionLabel("About"),
                 Panel(
                   child: mat.Text(
-                    "bitFocus 1.0\neverything you enter stays on this device. nothing is uploaded or shared.",
+                    "bitFocus\neverything you enter stays on this device, except messages you send to the advisor, which go to a free third-party AI service.",
                     style: TextStyle(fontSize: 13.5, height: 1.5, color: scheme.onSurfaceVariant),
                   ),
                 ),

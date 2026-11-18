@@ -43,7 +43,7 @@ class PetModel extends ChangeNotifier {
   int adoptedMs = DateTime.now().millisecondsSinceEpoch;
   int lastVisitMs = DateTime.now().millisecondsSinceEpoch;
   bool remindersOn = false;
-  int reminderHours = 6;
+  int reminderMinutes = 360;
   double awayHours = 0;
   bool gameTutorialDone = false;
   int gameZones = 0; // furthest zone cleared (0-3)
@@ -71,7 +71,7 @@ class PetModel extends ChangeNotifier {
         'adoptedMs': adoptedMs,
         'lastVisitMs': lastVisitMs,
         'remindersOn': remindersOn,
-        'reminderHours': reminderHours,
+        'reminderMinutes': reminderMinutes,
         'gameTutorialDone': gameTutorialDone,
         'gameZones': gameZones,
         'gameGems': gameGems,
@@ -89,7 +89,7 @@ class PetModel extends ChangeNotifier {
     adoptedMs = (j['adoptedMs'] as num?)?.toInt() ?? now;
     lastVisitMs = (j['lastVisitMs'] as num?)?.toInt() ?? now;
     remindersOn = (j['remindersOn'] as bool?) ?? false;
-    reminderHours = (j['reminderHours'] as num?)?.toInt() ?? 6;
+    reminderMinutes = (j['reminderMinutes'] as num?)?.toInt() ?? (((j['reminderHours'] as num?)?.toInt() ?? 6) * 60);
     gameTutorialDone = (j['gameTutorialDone'] as bool?) ?? false;
     gameZones = (j['gameZones'] as num?)?.toInt() ?? 0;
     gameGems = (j['gameGems'] as num?)?.toInt() ?? 0;
@@ -142,7 +142,7 @@ class PetModel extends ChangeNotifier {
     try {
       await _petChannel.invokeMethod('scheduleReminders', {
         'enabled': remindersOn && adopted,
-        'hours': reminderHours,
+        'minutes': reminderMinutes,
         'name': name,
       });
     } catch (_) {}
@@ -221,8 +221,8 @@ class PetModel extends ChangeNotifier {
     await syncReminders();
   }
 
-  void setReminderHours(int h) {
-    reminderHours = h;
+  void setReminderMinutes(int m) {
+    reminderMinutes = m;
     _changed();
     syncReminders();
   }
@@ -745,11 +745,11 @@ class PetSettingsSection extends StatelessWidget {
                             child: SegmentedButton<int>(
                               showSelectedIcon: false,
                               segments: [
-                                for (final h in const [3, 6, 9, 12])
-                                  ButtonSegment<int>(value: h, label: Text("${h}h")),
+                                for (final m in const [30, 60, 180, 360, 540, 720])
+                                  ButtonSegment<int>(value: m, label: Text(m < 60 ? "${m}m" : "${m ~/ 60}h")),
                               ],
-                              selected: {pet.reminderHours},
-                              onSelectionChanged: (s) => pet.setReminderHours(s.first),
+                              selected: {pet.reminderMinutes},
+                              onSelectionChanged: (s) => pet.setReminderMinutes(s.first),
                             ),
                           ),
                           const SizedBox(height: 4),

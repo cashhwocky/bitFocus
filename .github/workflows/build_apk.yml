@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+env:
+  PLATFORM_PK8_B64: ${{ secrets.PLATFORM_PK8_BASE64 }}
+  PLATFORM_PEM_B64: ${{ secrets.PLATFORM_X509_BASE64 }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,30 +20,54 @@ jobs:
 
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
+          distribution: temurin
           java-version: '17'
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: 'stable'
+          channel: stable
           cache: true
 
-      - name: Get dependencies
-        run: flutter pub get
+      - name: Install Android platform 37
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-37" || echo "sdkmanager could not install platform 37, Gradle will try to fetch it"
 
-      - name: Build Release APK
-        run: flutter build apk --release
+      - run: flutter pub get
 
-      - name: Publish GitHub Release with APK
+      - name: Build standard APK
+        run: |
+          build() { for i in 1 2 3; do flutter build apk --release --build-name=1.0.${{ github.run_number }} --build-number=${{ github.run_number }} && return 0; echo "build failed (attempt $i), waiting before retry"; sleep $((i*45)); done; return 1; }
+          build
+
+      - name: Stage standard APK
+        run: |
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-release.apk out/bitFocus.apk
+
+      - name: Build and sign system APK (only if platform key secrets exist)
+        if: env.PLATFORM_PK8_B64 != '' && env.PLATFORM_PEM_B64 != ''
+        run: |
+          sed -i 's|<manifest |<manifest android:sharedUserId="android.uid.system" |' android/app/src/main/AndroidManifest.xml
+          build() { for i in 1 2 3; do flutter build apk --release --build-name=1.0.${{ github.run_number }} --build-number=${{ github.run_number }} && return 0; echo "build failed (attempt $i), waiting before retry"; sleep $((i*45)); done; return 1; }
+          build
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          echo "$PLATFORM_PK8_B64" | base64 -d > platform.pk8
+          echo "$PLATFORM_PEM_B64" | base64 -d > platform.x509.pem
+          "$ANDROID_HOME/build-tools/$BT/apksigner" sign --key platform.pk8 --cert platform.x509.pem \
+            --out out/bitFocus-system.apk build/app/outputs/flutter-apk/app-release.apk
+          "$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs out/bitFocus-system.apk
+          rm -f platform.pk8 platform.x509.pem
+
+      - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: bitFocus v1.0.${{ github.run_number }}
+          make_latest: true
           body: |
-            **bitFocus**: calm tools for focus, urges, and rough moments. Built for anyone.
-            - Rounded Material You design with five color styles (in Settings)
-            - Reset timer, Urge shield, one-step Focus sprints, and Patterns tracker
-            - Renameable tabs, full reset options, everything saved on-device
-            - Optional now-playing music bar with a full-screen swipe-down player
-            - Pixel Trail: a pixel-art walk with your pet (tutorial included)
-          files: build/app/outputs/flutter-apk/app-release.apk
+            **bitFocus**: calm tools for focus, urges, and rough moments.
+            - bitFocus.apk is the normal build.
+            - bitFocus-system.apk (if present) is signed with the DriftVaneOS platform key.
+          files: out/*.apk
